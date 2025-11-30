@@ -1,0 +1,452 @@
+/**
+ Loads data into memory and provides query methods for users,
+ rooms, modules, programmes, student groups, subgroups, and timetable entries.
+ */
+package ie.ul.timetable.models;
+
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import ie.ul.timetable.models.Enums.*;
+
+public class DataManager {
+    private String dataDir;
+    
+    // In-memory storage used for fast access
+    private Map<String, User> users;
+    private Map<String, Room> rooms;
+    private Map<String, Module> modules;
+    private Map<String, Programme> programmes;
+    private List<ProgrammeModule> programmeModules;
+    private Map<String, StudentGroup> studentGroups;
+    private Map<String, Subgroup> subgroups;
+    private List<TimetableEntry> timetableEntries;
+    
+    /**
+    Initializes in-memory data structures and ensures CSV files exist.
+     Also Calls loadAllData() to populate all collections from files.
+     */
+    public DataManager(String dataDir) throws IOException {
+        this.dataDir = dataDir;
+        this.users = new HashMap<>();
+        this.rooms = new HashMap<>();
+        this.modules = new HashMap<>();
+        this.programmes = new HashMap<>();
+        this.programmeModules = new ArrayList<>();
+        this.studentGroups = new HashMap<>();
+        this.subgroups = new HashMap<>();
+        this.timetableEntries = new ArrayList<>();
+        
+        ensureDataDirectory();
+        loadAllData();
+    }
+    
+    /**
+     * Ensures the data directory exists and initializes CSV files with headers if missing.
+     */
+    private void ensureDataDirectory() throws IOException {
+        Path path = Paths.get(dataDir);
+        if (!Files.exists(path)) {
+            Files.createDirectories(path);
+        }
+        initializeCSVFiles();
+    }
+    
+    /**
+     * Creates CSV files with headers if they do not exist.
+     * Ensures the application can run even on first startup.
+     */
+    private void initializeCSVFiles() throws IOException {
+        Map<String, String[]> filesAndHeaders = new HashMap<>();
+        filesAndHeaders.put("users.csv", new String[]{"user_id", "name", "role", "password", "programme_year"});
+        filesAndHeaders.put("rooms.csv", new String[]{"room_id", "name", "room_type", "capacity"});
+        filesAndHeaders.put("modules.csv", new String[]{"code", "name", "lecture_hours", "tutorial_hours", "lab_hours", "lecturer_ids"});
+        filesAndHeaders.put("programmes.csv", new String[]{"code", "name", "years"});
+        filesAndHeaders.put("programme_modules.csv", new String[]{"programme_code", "year", "semester", "module_code"});
+        filesAndHeaders.put("student_groups.csv", new String[]{"group_id", "programme_code", "year", "size"});
+        filesAndHeaders.put("subgroups.csv", new String[]{"subgroup_id", "parent_group_id", "size"});
+        filesAndHeaders.put("timetable.csv", new String[]{"entry_id", "module_code", "session_type", "group_id", "room_id", "lecturer_id", "day", "start_time", "end_time"});
+        
+        for (Map.Entry<String, String[]> entry : filesAndHeaders.entrySet()) {
+            File file = new File(dataDir, entry.getKey());
+            if (!file.exists()) {
+                try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
+                    writer.println(String.join(",", entry.getValue()));
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all CSV data into memory by calling each specific load method.
+     */
+    private void loadAllData() throws IOException {
+        loadUsers();
+        loadRooms();
+        loadModules();
+        loadProgrammes();
+        loadProgrammeModules();
+        loadStudentGroups();
+        loadSubgroups();
+        loadTimetable();
+    }
+    
+    /**
+     * Loads all users from users.csv into memory.
+     */
+    private void loadUsers() throws IOException {
+        File file = new File(dataDir, "users.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 4) {
+                    String programmeYear = parts.length > 4 && !parts[4].isEmpty() ? parts[4] : null;
+                    User user = new User(parts[0], parts[1], UserRole.fromString(parts[2]), parts[3], programmeYear);
+                    users.put(user.getUserId(), user);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all rooms from rooms.csv into memory.
+     */
+    private void loadRooms() throws IOException {
+        File file = new File(dataDir, "rooms.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 4) {
+                    Room room = new Room(parts[0], parts[1], RoomType.fromString(parts[2]), Integer.parseInt(parts[3]));
+                    rooms.put(room.getRoomId(), room);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all modules from modules.csv into memory.
+     */
+    private void loadModules() throws IOException {
+        File file = new File(dataDir, "modules.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 6) {
+                    List<String> lecturerIds = new ArrayList<>();
+                    if (!parts[5].isEmpty()) {
+                        lecturerIds = Arrays.asList(parts[5].split(";"));
+                    }
+                    Module module = new Module(parts[0], parts[1], 
+                        Integer.parseInt(parts[2]), Integer.parseInt(parts[3]), 
+                        Integer.parseInt(parts[4]), lecturerIds);
+                    modules.put(module.getCode(), module);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all programmes from programmes.csv into memory.
+     */
+    private void loadProgrammes() throws IOException {
+        File file = new File(dataDir, "programmes.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 3) {
+                    Programme programme = new Programme(parts[0], parts[1], Integer.parseInt(parts[2]));
+                    programmes.put(programme.getCode(), programme);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all programme-module associations into memory.
+     */
+    private void loadProgrammeModules() throws IOException {
+        File file = new File(dataDir, "programme_modules.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 4) {
+                    ProgrammeModule pm = new ProgrammeModule(parts[0], 
+                        Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), parts[3]);
+                    programmeModules.add(pm);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all student groups from CSV into memory.
+     */
+    private void loadStudentGroups() throws IOException {
+        File file = new File(dataDir, "student_groups.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 4) {
+                    StudentGroup group = new StudentGroup(parts[0], parts[1], 
+                        Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+                    studentGroups.put(group.getGroupId(), group);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all subgroups from CSV into memory.
+     */
+    private void loadSubgroups() throws IOException {
+        File file = new File(dataDir, "subgroups.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 3) {
+                    Subgroup subgroup = new Subgroup(parts[0], parts[1], Integer.parseInt(parts[2]));
+                    subgroups.put(subgroup.getSubgroupId(), subgroup);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads all timetable entries from CSV into memory.
+     * Each entry includes module, session type, group, room, lecturer, and timeslot.
+     */
+    private void loadTimetable() throws IOException {
+        File file = new File(dataDir, "timetable.csv");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",", -1);
+                if (parts.length >= 9) {
+                    TimeSlot timeSlot = new TimeSlot(parts[6], parts[7], parts[8]);
+                    TimetableEntry entry = new TimetableEntry(parts[0], parts[1], 
+                        SessionType.fromString(parts[2]), parts[3], parts[4], parts[5], timeSlot);
+                    timetableEntries.add(entry);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Saves all in-memory timetable entries back to CSV.
+     * Overwrites existing file to maintain data consistency.
+     */
+    public void saveTimetable() throws IOException {
+        File file = new File(dataDir, "timetable.csv");
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
+            writer.println("entry_id,module_code,session_type,group_id,room_id,lecturer_id,day,start_time,end_time");
+            for (TimetableEntry entry : timetableEntries) {
+                writer.printf("%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
+                    entry.getEntryId(), entry.getModuleCode(), entry.getSessionType().getValue(),
+                    entry.getGroupId(), entry.getRoomId(), entry.getLecturerId(),
+                    entry.getTimeSlot().getDay(), entry.getTimeSlot().getStartTime(), 
+                    entry.getTimeSlot().getEndTime());
+            }
+        }
+    }
+    
+    /**
+     * Authenticates a user using their ID and password.
+     * Returns the User object if successful, otherwise null.
+     */
+    public User authenticateUser(String userId, String password) {
+        User user = users.get(userId);
+        if (user != null && user.getPassword().equals(password)) {
+            return user;
+        }
+        return null;
+    }
+    
+    /**
+     * Returns all timetable entries for a specific student,
+     * including entries for both the student's group and any subgroups.
+     */
+    public List<TimetableEntry> getStudentTimetable(String userId) {
+        User user = users.get(userId);
+        if (user == null || user.getRole() != UserRole.STUDENT) {
+            return new ArrayList<>();
+        }
+        
+        List<String> groupIds = new ArrayList<>();
+        for (StudentGroup group : studentGroups.values()) {
+            String groupKey = group.getProgrammeCode() + "_Y" + group.getYear();
+            if (groupKey.equals(user.getProgrammeYear())) {
+                groupIds.add(group.getGroupId());
+            }
+        }
+        
+        for (Subgroup subgroup : subgroups.values()) {
+            if (groupIds.contains(subgroup.getParentGroupId())) {
+                groupIds.add(subgroup.getSubgroupId());
+            }
+        }
+        
+        List<TimetableEntry> result = new ArrayList<>();
+        for (TimetableEntry entry : timetableEntries) {
+            if (groupIds.contains(entry.getGroupId())) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Returns all timetable entries for a specific lecturer.
+     */
+    public List<TimetableEntry> getLecturerTimetable(String lecturerId) {
+        List<TimetableEntry> result = new ArrayList<>();
+        for (TimetableEntry entry : timetableEntries) {
+            if (entry.getLecturerId().equals(lecturerId)) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Returns all timetable entries for a specific room.
+     */
+    public List<TimetableEntry> getRoomTimetable(String roomId) {
+        List<TimetableEntry> result = new ArrayList<>();
+        for (TimetableEntry entry : timetableEntries) {
+            if (entry.getRoomId().equals(roomId)) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Returns all timetable entries for a specific module.
+     */
+    public List<TimetableEntry> getModuleTimetable(String moduleCode) {
+        List<TimetableEntry> result = new ArrayList<>();
+        for (TimetableEntry entry : timetableEntries) {
+            if (entry.getModuleCode().equals(moduleCode)) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Returns all timetable entries for a specific programme and year,
+     * including entries for any subgroups.
+     */
+    public List<TimetableEntry> getProgrammeTimetable(String programmeCode, int year) {
+        List<String> groupIds = new ArrayList<>();
+        for (StudentGroup group : studentGroups.values()) {
+            if (group.getProgrammeCode().equals(programmeCode) && group.getYear() == year) {
+                groupIds.add(group.getGroupId());
+            }
+        }
+        
+        for (Subgroup subgroup : subgroups.values()) {
+            if (groupIds.contains(subgroup.getParentGroupId())) {
+                groupIds.add(subgroup.getSubgroupId());
+            }
+        }
+        
+        List<TimetableEntry> result = new ArrayList<>();
+        for (TimetableEntry entry : timetableEntries) {
+            if (groupIds.contains(entry.getGroupId())) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+    
+    /**
+    Adds a new timetable entry after checking for conflicts.
+     Returns a result indicating success or failure.
+     */
+    public ValidationResult addTimetableEntry(TimetableEntry entry) throws IOException {
+        List<String> conflicts = checkConflicts(entry);
+        if (!conflicts.isEmpty()) {
+            return new ValidationResult(false, "Conflicts: " + String.join(", ", conflicts));
+        }
+        
+        timetableEntries.add(entry);
+        saveTimetable();
+        return new ValidationResult(true, "Entry added successfully");
+    }
+    
+    /**
+     * Removes a timetable entry by ID. Returns true if successful.
+     */
+    public boolean removeTimetableEntry(String entryId) throws IOException {
+        boolean removed = timetableEntries.removeIf(e -> e.getEntryId().equals(entryId));
+        if (removed) {
+            saveTimetable();
+        }
+        return removed;
+    }
+    
+    /**
+     * Checks for conflicts with existing timetable entries.
+     * Conflicts occur if room, lecturer, or group is already booked for the same timeslot.
+     */
+    private List<String> checkConflicts(TimetableEntry newEntry) {
+        List<String> conflicts = new ArrayList<>();
+        
+        for (TimetableEntry entry : timetableEntries) {
+            if (entry.getEntryId().equals(newEntry.getEntryId())) {
+                continue;
+            }
+            
+            if (!newEntry.conflictsWith(entry)) {
+                continue;
+            }
+            
+            if (entry.getRoomId().equals(newEntry.getRoomId())) {
+                conflicts.add("Room " + entry.getRoomId() + " already booked");
+            }
+            
+            if (entry.getLecturerId().equals(newEntry.getLecturerId())) {
+                conflicts.add("Lecturer " + entry.getLecturerId() + " already scheduled");
+            }
+            
+            if (entry.getGroupId().equals(newEntry.getGroupId())) {
+                conflicts.add("Group " + entry.getGroupId() + " already scheduled");
+            }
+        }
+        
+        return conflicts;
+    }
+    
+    // Getters for collections
+    public Map<String, User> getUsers() { return users; }
+    public Map<String, Room> getRooms() { return rooms; }
+    public Map<String, Module> getModules() { return modules; }
+    public Map<String, Programme> getProgrammes() { return programmes; }
+    public List<TimetableEntry> getTimetableEntries() { return timetableEntries; }
+    
+    /**
+     * Represents the result of a validation operation, e.g., adding a timetable entry.
+     * Contains a success flag and a descriptive message.
+     */
+    public static class ValidationResult {
+        private boolean success;
+        private String message;
+        
+        public ValidationResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+        
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+    }
+}
