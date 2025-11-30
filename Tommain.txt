@@ -1,0 +1,35 @@
+/**
+ * University of Limerick Timetabling System
+
+ */
+
+/**  This class contains the main method, where our program begins to execute. 
+     It sets up the core components of the system and then runs the application.
+
+*/
+package ie.ul.timetable;
+ 
+import ie.ul.timetable.controllers.TimetableController; // this connects our data and the user interface
+import ie.ul.timetable.models.DataManager; // our model will manage the timetable data
+import ie.ul.timetable.views.CLIView; // this is the commmand-line interface for the user
+
+public class Main {
+    public static void main(String[] args) {
+        try {
+            // Initialize components
+            DataManager dataManager = new DataManager("data");
+            CLIView view = new CLIView();
+            TimetableController controller = new TimetableController(dataManager, view);
+            
+        
+
+            controller.run();
+
+
+        } catch (Exception e) { 
+            // This will handle any startup errors we face
+            System.err.println("Error starting application: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
