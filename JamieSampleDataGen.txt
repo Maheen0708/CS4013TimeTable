@@ -1,0 +1,141 @@
+//CSV FILE
+package ie.ul.timetable.utils;
+
+import java.io.*;
+import java.nio.file.*;
+
+public class SampleDataGenerator {
+    
+    public static void main(String[] args) {
+        try {
+            createSampleData("data");
+            System.out.println("Sample data files created successfully!");
+            System.out.println("\nSample Login Credentials:");
+            System.out.println("Student: S001 / pass123");
+            System.out.println("Lecturer: L001 / pass123");
+            System.out.println("Admin: A001 / admin123");
+        } catch (IOException e) {
+            System.err.println("Error creating sample data: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    public static void createSampleData(String dataDir) throws IOException {
+        Path path = Paths.get(dataDir);
+        if (!Files.exists(path)) {
+            Files.createDirectories(path);
+        }
+        
+        // students
+        String[][] users = {
+            {"user_id", "name", "role", "password", "programme_year"},
+            {"S001", "Alice Murphy", "student", "pass123", "CS_Y1"},
+            {"S002", "Bob Kelly", "student", "pass123", "CS_Y1"},
+            {"S003", "Carol O'Brien", "student", "pass123", "CS_Y2"},
+            {"L001", "Dr. John Smith", "lecturer", "pass123", ""},
+            {"L002", "Dr. Mary Jones", "lecturer", "pass123", ""},
+            {"L003", "Prof. David Wilson", "lecturer", "pass123", ""},
+            {"A001", "Admin User", "admin", "admin123", ""}
+        };
+        writeCSV(dataDir, "users.csv", users);
+        
+        //rooms
+        String[][] rooms = {
+            {"room_id", "name", "room_type", "capacity"},
+            {"CR101", "Lecture Theatre A", "classroom", "150"},
+            {"CR102", "Lecture Theatre B", "classroom", "120"},
+            {"CR201", "Tutorial Room 1", "classroom", "30"},
+            {"CR202", "Tutorial Room 2", "classroom", "30"},
+            {"LAB101", "Computer Lab 1", "lab", "40"},
+            {"LAB102", "Computer Lab 2", "lab", "40"},
+            {"LAB201", "Science Lab", "lab", "25"}
+        };
+        writeCSV(dataDir, "rooms.csv", rooms);
+        
+        // Module creation
+        String[][] modules = {
+            {"code", "name", "lecture_hours", "tutorial_hours", "lab_hours", "lecturer_ids"},
+            {"CS4001", "Programming Fundamentals", "2", "1", "2", "L001"},
+            {"CS4002", "Data Structures", "2", "1", "2", "L001;L002"},
+            {"CS4003", "Database Systems", "2", "1", "2", "L002"},
+            {"CS4101", "Software Engineering", "3", "1", "2", "L003"},
+            {"CS4102", "Algorithms", "2", "2", "0", "L001"},
+            {"MA4001", "Mathematics for Computing", "3", "2", "0", "L003"}
+        };
+        writeCSV(dataDir, "modules.csv", modules);
+        
+        // programmes
+        String[][] programmes = {
+            {"code", "name", "years"},
+            {"CS", "Computer Science", "4"},
+            {"SE", "Software Engineering", "4"},
+            {"DS", "Data Science", "4"}
+        };
+        writeCSV(dataDir, "programmes.csv", programmes);
+        
+        //programme modules
+        String[][] programmeModules = {
+            {"programme_code", "year", "semester", "module_code"},
+            {"CS", "1", "1", "CS4001"},
+            {"CS", "1", "1", "CS4002"},
+            {"CS", "1", "1", "MA4001"},
+            {"CS", "2", "1", "CS4003"},
+            {"CS", "2", "1", "CS4101"},
+            {"CS", "2", "1", "CS4102"}
+        };
+        writeCSV(dataDir, "programme_modules.csv", programmeModules);
+        
+        // student groups
+        String[][] studentGroups = {
+            {"group_id", "programme_code", "year", "size"},
+            {"CS_Y1_G1", "CS", "1", "80"},
+            {"CS_Y2_G1", "CS", "2", "75"}
+        };
+        writeCSV(dataDir, "student_groups.csv", studentGroups);
+        
+        //  subgroups.csv
+        String[][] subgroups = {
+            {"subgroup_id", "parent_group_id", "size"},
+            {"CS_Y1_G1_SG1", "CS_Y1_G1", "40"},
+            {"CS_Y1_G1_SG2", "CS_Y1_G1", "40"},
+            {"CS_Y2_G1_SG1", "CS_Y2_G1", "38"},
+            {"CS_Y2_G1_SG2", "CS_Y2_G1", "37"}
+        };
+        writeCSV(dataDir, "subgroups.csv", subgroups);
+        
+        // timetable
+        String[][] timetable = {
+            {"entry_id", "module_code", "session_type", "group_id", "room_id", "lecturer_id", "day", "start_time", "end_time"},
+            // Monday
+            {"E001", "CS4001", "lecture", "CS_Y1_G1", "CR101", "L001", "Monday", "09:00", "11:00"},
+            {"E002", "CS4001", "lab", "CS_Y1_G1_SG1", "LAB101", "L001", "Monday", "14:00", "16:00"},
+            {"E003", "CS4001", "lab", "CS_Y1_G1_SG2", "LAB102", "L001", "Monday", "14:00", "16:00"},
+            // Tuesday
+            {"E004", "CS4002", "lecture", "CS_Y1_G1", "CR101", "L001", "Tuesday", "09:00", "11:00"},
+            {"E005", "MA4001", "lecture", "CS_Y1_G1", "CR102", "L003", "Tuesday", "14:00", "17:00"},
+            // Wednesday
+            {"E006", "CS4001", "tutorial", "CS_Y1_G1_SG1", "CR201", "L001", "Wednesday", "09:00", "10:00"},
+            {"E007", "CS4001", "tutorial", "CS_Y1_G1_SG2", "CR202", "L001", "Wednesday", "09:00", "10:00"},
+            {"E008", "CS4002", "lab", "CS_Y1_G1_SG1", "LAB101", "L002", "Wednesday", "14:00", "16:00"},
+            {"E009", "CS4002", "lab", "CS_Y1_G1_SG2", "LAB102", "L002", "Wednesday", "14:00", "16:00"},
+            // Thursday
+            {"E010", "CS4003", "lecture", "CS_Y2_G1", "CR101", "L002", "Thursday", "09:00", "11:00"},
+            {"E011", "CS4101", "lecture", "CS_Y2_G1", "CR102", "L003", "Thursday", "11:00", "14:00"},
+            // Friday
+            {"E012", "CS4002", "tutorial", "CS_Y1_G1_SG1", "CR201", "L001", "Friday", "09:00", "10:00"},
+            {"E013", "CS4002", "tutorial", "CS_Y1_G1_SG2", "CR202", "L002", "Friday", "09:00", "10:00"},
+            {"E014", "MA4001", "tutorial", "CS_Y1_G1_SG1", "CR201", "L003", "Friday", "14:00", "16:00"},
+            {"E015", "MA4001", "tutorial", "CS_Y1_G1_SG2", "CR202", "L003", "Friday", "14:00", "16:00"}
+        };
+        writeCSV(dataDir, "timetable.csv", timetable);
+    }
+    
+    private static void writeCSV(String dataDir, String filename, String[][] data) throws IOException {
+        File file = new File(dataDir, filename);
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
+            for (String[] row : data) {
+                writer.println(String.join(",", row));
+            }
+        }
+    }
+}
