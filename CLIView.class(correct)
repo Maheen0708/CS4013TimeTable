@@ -1,0 +1,203 @@
+
+package ie.ul.timetable;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+
+class CLIView {
+   private Scanner scanner;
+
+   public CLIView() {
+      this.scanner = new Scanner(System.in);
+   }
+
+   public void displayWelcome() {
+      System.out.println();
+      System.out.println("--=====================================================================--");
+      System.out.println("                 University of Limerick");
+      System.out.println("                   Timetabling System");
+      System.out.println("--=====================================================================--");
+      System.out.println();
+   }
+
+   public String[] displayLoginPrompt() {
+      System.out.println("Log in to continue:");
+      System.out.print("User ID: ");
+      String var1 = this.scanner.nextLine().trim();
+      System.out.print("Password: ");
+      String var2 = this.scanner.nextLine().trim();
+      return new String[]{var1, var2};
+   }
+
+   public void displayError(String var1) {
+      System.out.println("\nError: " + var1 + "\n");
+   }
+
+   public void displaySuccess(String var1) {
+      System.out.println("\nSuccess: " + var1 + "\n");
+   }
+
+   public void displayInfo(String var1) {
+      System.out.println("\nInfo: " + var1 + "\n");
+   }
+
+   public void displayMainMenu(User var1) {
+      System.out.println("\nWelcome, " + var1.getName() + "!");
+      System.out.println("\n--- Main Menu ---");
+      if (var1.getRole() == UserRole.STUDENT) {
+         System.out.println("1. View My Timetable");
+         System.out.println("2. View Module Timetable");
+         System.out.println("3. View Programme Timetable");
+         System.out.println("4. Logout");
+      } else if (var1.getRole() == UserRole.LECTURER) {
+         System.out.println("1. View My Timetable");
+         System.out.println("2. View Module Timetable");
+         System.out.println("3. View Room Timetable");
+         System.out.println("4. Logout");
+      } else if (var1.getRole() == UserRole.ADMIN) {
+         System.out.println("1. View Student Timetable");
+         System.out.println("2. View Lecturer Timetable");
+         System.out.println("3. View Module Timetable");
+         System.out.println("4. View Programme Timetable");
+         System.out.println("5. View Room Timetable");
+         System.out.println("6. Add Timetable Entry");
+         System.out.println("7. Remove Timetable Entry");
+         System.out.println("8. Logout");
+      }
+
+      System.out.println();
+   }
+
+   public String getMenuChoice() {
+      System.out.print("Enter your choice: ");
+      return this.scanner.nextLine().trim();
+   }
+
+   public String getInput(String var1) {
+      System.out.print(var1 + ": ");
+      return this.scanner.nextLine().trim();
+   }
+
+   public void displayTimetable(List<TimetableEntry> var1, String var2) {
+      if (var1.isEmpty()) {
+         System.out.println("\n" + var2 + ": No entries found.\n");
+      } else {
+         System.out.println("\n" + var2 + ":");
+         System.out.println("====================================================================================================");
+         String[] var3 = new String[]{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
+         String[] var4 = var3;
+         int var5 = var3.length;
+
+         for(int var6 = 0; var6 < var5; ++var6) {
+            String var7 = var4[var6];
+            ArrayList var8 = new ArrayList();
+            Iterator var9 = var1.iterator();
+
+            TimetableEntry var10;
+            while(var9.hasNext()) {
+               var10 = (TimetableEntry)var9.next();
+               if (var10.getTimeSlot().getDay().equals(var7)) {
+                  var8.add(var10);
+               }
+            }
+
+            if (!var8.isEmpty()) {
+               System.out.println("\n" + var7 + ":");
+               System.out.println("----------------------------------------------------------------------------------------------------");
+               var8.sort(Comparator.comparing((var0) -> {
+                  return var0.getTimeSlot().getStartTime();
+               }));
+               var9 = var8.iterator();
+
+               while(var9.hasNext()) {
+                  var10 = (TimetableEntry)var9.next();
+                  System.out.printf("  %s-%s | %s | %s | Room: %s | Lecturer: %s%n", var10.getTimeSlot().getStartTime(), var10.getTimeSlot().getEndTime(), var10.getModuleCode(), var10.getSessionType().getValue().toUpperCase(), var10.getRoomId(), var10.getLecturerId());
+               }
+            }
+         }
+
+         System.out.println("====================================================================================================");
+      }
+   }
+
+   public void displayTimetableWithDetails(List<TimetableEntry> var1, Map<String, Module> var2, Map<String, Room> var3, String var4) {
+      if (var1.isEmpty()) {
+         System.out.println("\n" + var4 + ": No entries found.\n");
+      } else {
+         System.out.println("\n" + var4 + ":");
+         System.out.println("====================================================================================================");
+         String[] var5 = new String[]{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
+         String[] var6 = var5;
+         int var7 = var5.length;
+
+         for(int var8 = 0; var8 < var7; ++var8) {
+            String var9 = var6[var8];
+            ArrayList var10 = new ArrayList();
+            Iterator var11 = var1.iterator();
+
+            TimetableEntry var12;
+            while(var11.hasNext()) {
+               var12 = (TimetableEntry)var11.next();
+               if (var12.getTimeSlot().getDay().equals(var9)) {
+                  var10.add(var12);
+               }
+            }
+
+            if (!var10.isEmpty()) {
+               System.out.println("\n" + var9 + ":");
+               System.out.println("----------------------------------------------------------------------------------------------------");
+               var10.sort(Comparator.comparing((var0) -> {
+                  return var0.getTimeSlot().getStartTime();
+               }));
+               var11 = var10.iterator();
+
+               while(var11.hasNext()) {
+                  var12 = (TimetableEntry)var11.next();
+                  Module var13 = (Module)var2.get(var12.getModuleCode());
+                  Room var14 = (Room)var3.get(var12.getRoomId());
+                  String var15 = var13 != null ? var13.getName() : "Unknown";
+                  String var16 = var14 != null ? var14.getName() : "Unknown";
+                  System.out.printf("  %s-%s | %s - %s | %s | %s (%s) | Lecturer: %s%n", var12.getTimeSlot().getStartTime(), var12.getTimeSlot().getEndTime(), var12.getModuleCode(), var15, var12.getSessionType().getValue().toUpperCase(), var16, var12.getRoomId(), var12.getLecturerId());
+               }
+            }
+         }
+
+         System.out.println("====================================================================================================\n");
+      }
+   }
+
+   public Map<String, String> displayAddEntryForm() {
+      HashMap var1 = new HashMap();
+      System.out.println("\n--- Add Timetable Entry ---");
+      var1.put("entry_id", this.getInput("Entry ID"));
+      var1.put("module_code", this.getInput("Module Code"));
+      var1.put("session_type", this.getInput("Session Type (lecture/tutorial/lab)"));
+      var1.put("group_id", this.getInput("Group ID"));
+      var1.put("room_id", this.getInput("Room ID"));
+      var1.put("lecturer_id", this.getInput("Lecturer ID"));
+      var1.put("day", this.getInput("Day (Monday-Friday)"));
+      var1.put("start_time", this.getInput("Start Time (HH:MM)"));
+      var1.put("end_time", this.getInput("End Time (HH:MM)"));
+      return var1;
+   }
+
+   public boolean confirmAction(String var1) {
+      System.out.print(var1 + " (y/n): ");
+      String var2 = this.scanner.nextLine().trim().toLowerCase();
+      return var2.equals("y");
+   }
+
+   public void pause() {
+      System.out.print("Press Enter to continue");
+      this.scanner.nextLine();
+   }
+
+   public void close() {
+      this.scanner.close();
+   }
+}
