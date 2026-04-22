@@ -1,0 +1,157 @@
+package com.mycompany.lectureserver;
+
+import java.io.*;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.*;
+
+public class LectureServer {
+
+    private static final int PORT = 5051;
+
+    // thread-safe map
+    private static Map<String, String> schedule = new ConcurrentHashMap<>();
+
+    // allowed time slots (ordered)
+    private static final List<String> SLOTS = Arrays.asList(
+        "09:00-10:00","10:00-11:00","11:00-12:00",
+        "12:00-13:00","13:00-14:00","14:00-15:00"
+    );
+
+    public static void main(String[] args) throws IOException {
+        ServerSocket servSock = new ServerSocket(PORT);
+        System.out.println("Server started...");
+
+        while (true) {
+            Socket client = servSock.accept();
+            new Thread(new ClientHandler(client)).start(); // multithreading
+        }
+    }
+
+    static class ClientHandler implements Runnable {
+        private Socket link;
+
+        public ClientHandler(Socket link) {
+            this.link = link;
+        }
+
+        public void run() {
+            try (
+                BufferedReader in = new BufferedReader(new InputStreamReader(link.getInputStream()));
+                PrintWriter out = new PrintWriter(link.getOutputStream(), true)
+            ) {
+                String msg;
+                while ((msg = in.readLine()) != null) {
+
+                    if (msg.equals("STOP")) {
+                        out.println("TERMINATE");
+                        break;
+                    }
+
+                    out.println(processRequest(msg));
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static String processRequest(String msg) {
+        String[] p = msg.split("\\|", -1);
+        String action = p[0];
+
+        try {
+            switch (action) {
+                case "ADD": return add(p);
+                case "REMOVE": return remove(p);
+                case "DISPLAY": return display();
+                case "EARLY": return early();
+                default: throw new IncorrectActionException("Invalid action");
+            }
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
+        }
+    }
+
+    private static String add(String[] p) {
+        String key = p[1] + "|" + p[2];
+        if (schedule.containsKey(key)) return "ERROR: Clash";
+        schedule.put(key, p[3] + "," + p[4]);
+        return "OK: Added";
+    }
+
+    private static String remove(String[] p) {
+        String key = p[1] + "|" + p[2];
+        if (!schedule.containsKey(key)) return "ERROR: Not Found";
+        schedule.remove(key);
+        return "OK: Removed";
+    }
+
+    private static String display() {
+        if (schedule.isEmpty()) return "SCHEDULE|EMPTY";
+
+        StringBuilder sb = new StringBuilder("SCHEDULE|");
+        schedule.forEach((k,v)->{
+            String[] d = k.split("\\|");
+            String[] val = v.split(",");
+            sb.append(d[0]).append(",").append(d[1]).append(",")
+              .append(val[0]).append(",").append(val[1]).append(";");
+        });
+        return sb.toString();
+    }
+
+    // EARLY LECTURES WITH PROPER SLOT SHIFTING + FORK JOIN
+    private static String early() {
+        Map<String, List<Map.Entry<String,String>>> byDay = new HashMap<>();
+
+        for (Map.Entry<String,String> e : schedule.entrySet()) {
+            String day = e.getKey().split("\\|")[0];
+            byDay.computeIfAbsent(day,k->new ArrayList<>()).add(e);
+        }
+
+        ForkJoinPool pool = new ForkJoinPool();
+        Map<String,String> newSchedule = new ConcurrentHashMap<>();
+
+        pool.submit(() ->
+            byDay.entrySet().parallelStream().forEach(entry -> {
+                shiftDay(entry.getKey(), entry.getValue(), newSchedule);
+            })
+        ).join();
+
+        schedule = newSchedule;
+        return "OK: Early lectures applied";
+    }
+
+    // shift one day safely
+    private static void shiftDay(String day,
+                                List<Map.Entry<String,String>> lectures,
+                                Map<String,String> result) {
+
+        int slotIndex = 0;
+
+        for (Map.Entry<String,String> e : lectures) {
+
+            while (slotIndex < SLOTS.size()) {
+                String newKey = day + "|" + SLOTS.get(slotIndex);
+
+                // only assign if free
+                if (!result.containsKey(newKey)) {
+                    result.put(newKey, e.getValue());
+                    slotIndex++;
+                    break;
+                }
+                slotIndex++;
+            }
+
+            // if no early slot left → keep original
+            if (slotIndex >= SLOTS.size()) {
+                result.put(e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    static class IncorrectActionException extends Exception {
+        public IncorrectActionException(String m) { super(m); }
+    }
+}
