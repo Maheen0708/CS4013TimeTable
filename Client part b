@@ -1,0 +1,209 @@
+package com.mycompany.lectureclient;
+
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.collections.*;
+import javafx.concurrent.Task;
+import javafx.fxml.*;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.BorderPane;
+import javafx.stage.Stage;
+
+import java.io.*;
+import java.net.*;
+import java.net.URL;
+import java.time.LocalDate;
+import java.util.ResourceBundle;
+
+public class LectureClient extends Application implements Initializable {
+
+    private static final String HOST = "localhost";
+    private static final int PORT = 5051;
+
+    private Socket link;
+    private BufferedReader in;
+    private PrintWriter out;
+
+    @FXML private ComboBox<String> actionBox;
+    @FXML private DatePicker datePicker;
+    @FXML private ComboBox<String> timeBox;
+    @FXML private TextField roomField;
+    @FXML private TextField moduleField;
+    @FXML private TextArea logArea;
+    @FXML private Label statusLabel;
+    @FXML private TableView<Row> tableView;
+    @FXML private TableColumn<Row, String> dateCol;
+    @FXML private TableColumn<Row, String> timeCol;
+    @FXML private TableColumn<Row, String> roomCol;
+    @FXML private TableColumn<Row, String> moduleCol;
+
+    private ObservableList<Row> tableData;
+
+    @Override
+    public void start(Stage stage) throws Exception {
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("LectureClient.fxml"));
+        loader.setController(this);
+        BorderPane root = loader.load();
+
+        stage.setScene(new Scene(root, 1000, 600));
+        stage.setTitle("Lecture Scheduler Client");
+        stage.show();
+
+        connectToServer();
+    }
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+
+        // ✅ ACTIONS (Part B requirement)
+        actionBox.getItems().addAll("ADD", "REMOVE", "DISPLAY", "EARLY");
+        actionBox.setValue("ADD");
+
+        timeBox.getItems().addAll(
+                "09:00-10:00","10:00-11:00","11:00-12:00",
+                "12:00-13:00","13:00-14:00","14:00-15:00"
+        );
+
+        timeBox.setValue("09:00-10:00");
+        datePicker.setValue(LocalDate.now());
+
+        // TABLE SETUP
+        dateCol.setCellValueFactory(new PropertyValueFactory<>("date"));
+        timeCol.setCellValueFactory(new PropertyValueFactory<>("time"));
+        roomCol.setCellValueFactory(new PropertyValueFactory<>("room"));
+        moduleCol.setCellValueFactory(new PropertyValueFactory<>("module"));
+
+        tableData = FXCollections.observableArrayList();
+        tableView.setItems(tableData);
+    }
+
+    private void connectToServer() {
+        try {
+            link = new Socket(HOST, PORT);
+            in = new BufferedReader(new InputStreamReader(link.getInputStream()));
+            out = new PrintWriter(link.getOutputStream(), true);
+            statusLabel.setText("Status: Connected");
+        } catch (IOException e) {
+            statusLabel.setText("Status: Connection Failed");
+        }
+    }
+
+    // 🔥 MAIN SEND FUNCTION (javafx.concurrent)
+    @FXML
+    private void handleSendRequest() {
+
+        String action = actionBox.getValue();
+
+        String date = "";
+        String time = "";
+        String room = "";
+        String module = "";
+
+        if (action.equals("ADD") || action.equals("REMOVE")) {
+            if (datePicker.getValue() == null || timeBox.getValue() == null) {
+                showError("Select date and time");
+                return;
+            }
+
+            date = datePicker.getValue().toString();
+            time = timeBox.getValue();
+
+            if (action.equals("ADD")) {
+                room = roomField.getText().trim();
+                module = moduleField.getText().trim();
+
+                if (room.isEmpty() || module.isEmpty()) {
+                    showError("Room and Module required");
+                    return;
+                }
+            }
+        }
+
+        String request = action + "|" + date + "|" + time + "|" + room + "|" + module;
+        appendLog("CLIENT -> " + request);
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+
+                out.println(request);
+                String response = in.readLine();
+
+                Platform.runLater(() -> {
+                    appendLog("SERVER -> " + response);
+
+                    if (response.startsWith("SCHEDULE|")) {
+                        parseSchedule(response);
+                    }
+
+                    statusLabel.setText("Status: Ready");
+                });
+
+                return null;
+            }
+        };
+
+        new Thread(task).start();
+    }
+
+    @FXML
+    private void handleStop() {
+        try {
+            if (out != null) out.println("STOP");
+            if (link != null) link.close();
+        } catch (IOException e) {}
+
+        statusLabel.setText("Status: Stopped");
+    }
+
+    private void appendLog(String msg) {
+        logArea.appendText(msg + "\n");
+    }
+
+    private void parseSchedule(String response) {
+        tableData.clear();
+
+        String data = response.replace("SCHEDULE|", "");
+        if (data.equals("EMPTY")) return;
+
+        String[] entries = data.split(";");
+
+        for (String entry : entries) {
+            if (entry.isEmpty()) continue;
+
+            String[] parts = entry.split(",");
+            if (parts.length == 4) {
+                tableData.add(new Row(parts[0], parts[1], parts[2], parts[3]));
+            }
+        }
+    }
+
+    private void showError(String msg) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setContentText(msg);
+        alert.showAndWait();
+    }
+
+    // TABLE MODEL
+    public static class Row {
+        private final String date;
+        private final String time;
+        private final String room;
+        private final String module;
+
+        public Row(String d, String t, String r, String m) {
+            date = d; time = t; room = r; module = m;
+        }
+
+        public String getDate() { return date; }
+        public String getTime() { return time; }
+        public String getRoom() { return room; }
+        public String getModule() { return module; }
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
